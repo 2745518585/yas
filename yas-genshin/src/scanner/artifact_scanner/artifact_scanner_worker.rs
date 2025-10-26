@@ -79,12 +79,29 @@ impl ArtifactScannerWorker {
         let str_main_stat_name = self.model_inference(self.window_info.main_stat_name_rect, image)?;
         let str_main_stat_value = self.model_inference(self.window_info.main_stat_value_rect, image)?;
 
-        let str_sub_stat0 = self.model_inference(self.window_info.sub_stat_1, image)?;
-        let str_sub_stat1 = self.model_inference(self.window_info.sub_stat_2, image)?;
-        let str_sub_stat2 = self.model_inference(self.window_info.sub_stat_3, image)?;
-        let str_sub_stat3 = self.model_inference(self.window_info.sub_stat_4, image)?;
+        let mut str_level = self.model_inference(self.window_info.level_rect, image)?;
 
-        let str_level = self.model_inference(self.window_info.level_rect, image)?;
+        let mut level_rect = self.window_info.level_rect;
+        let mut sub_stat_1 = self.window_info.sub_stat_1;
+        let mut sub_stat_2 = self.window_info.sub_stat_2;
+        let mut sub_stat_3 = self.window_info.sub_stat_3;
+        let mut sub_stat_4 = self.window_info.sub_stat_4;
+
+        if !str_level.starts_with('+') {
+            level_rect.top += self.window_info.sanctifying_elixir;
+            sub_stat_1.top += self.window_info.sanctifying_elixir;
+            sub_stat_2.top += self.window_info.sanctifying_elixir;
+            sub_stat_3.top += self.window_info.sanctifying_elixir;
+            sub_stat_4.top += self.window_info.sanctifying_elixir;
+
+            str_level = self.model_inference(level_rect, image)?;
+        }
+
+        let str_sub_stat0 = self.model_inference(sub_stat_1, image)?;
+        let str_sub_stat1 = self.model_inference(sub_stat_2, image)?;
+        let str_sub_stat2 = self.model_inference(sub_stat_3, image)?;
+        let str_sub_stat3 = self.model_inference(sub_stat_4, image)?;
+
         let str_equip = self.model_inference(self.window_info.item_equip_rect, image)?;
 
         anyhow::Ok(GenshinArtifactScanResult {

@@ -167,6 +167,8 @@ impl ArtifactSetName {
             ArtifactSetName::ObsidianCodex => "ObsidianCodex",
             ArtifactSetName::LongNightsOath => "LongNightsOath",
             ArtifactSetName::FinaleOfTheDeepGalleries => "FinaleOfTheDeepGalleries",
+            ArtifactSetName::NightOfTheSkysUnveiling => "NightOfTheSkysUnveiling",
+            ArtifactSetName::SilkenMoonsSerenade => "SilkenMoonsSerenade",
         }
     }
 }

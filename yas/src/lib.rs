@@ -1,5 +1,4 @@
 #![feature(decl_macro)]
-#![feature(concat_idents)]
 #![allow(unused_imports)]
 
 #[cfg(all(feature = "ort", feature = "tract_onnx"))]

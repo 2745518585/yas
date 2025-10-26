@@ -121,7 +121,7 @@
         "top": 318.2,
         "left": 904.3,
         "height": 24.1,
-        "width": 196.2
+        "width": 240.0
       }
     },
     "genshin_artifact_sub_stat2_rect": {
@@ -129,7 +129,7 @@
         "top": 342.3,
         "left": 904.3,
         "height": 27.1,
-        "width": 196.2
+        "width": 240.0
       }
     },
     "genshin_artifact_sub_stat3_rect": {
@@ -137,7 +137,7 @@
         "top": 369.4,
         "left": 904.3,
         "height": 25.9,
-        "width": 196.2
+        "width": 240.0
       }
     },
     "genshin_artifact_sub_stat4_rect": {
@@ -145,7 +145,7 @@
         "top": 395.3,
         "left": 904.3,
         "height": 25.3,
-        "width": 196.2
+        "width": 240.0
       }
     },
     "genshin_artifact_title_rect": {
@@ -155,6 +155,9 @@
         "height": 26.7,
         "width": 205.3
       }
+    },
+    "genshin_artifact_sanctifying_elixir": {
+      "InvariantFloat": 30.0
     }
   }
 }

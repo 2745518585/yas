@@ -3,11 +3,9 @@ resolver = "2"
 members = [
     "yas",
     "yas-genshin",
-    "yas-starrail",
     "yas-derive",
-    "yas-application",
-    "yas-wutheringwaves"
-, "yas-derive-wuthering-waves"]
+    "yas-application"
+]
 
 [profile.release]
 lto = true

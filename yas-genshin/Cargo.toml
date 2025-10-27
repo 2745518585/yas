@@ -3,7 +3,7 @@ name = "yas_scanner_genshin"
 version = "0.1.16"
 edition = "2021"
 description = "Genshin Impact item scanner"
-repository = "https://github.com/wormtql/yas"
+repository = "https://github.com/2745518585/yas"
 keywords = ["GenshinImpact", "artifacts", "scanner", "ocr"]
 license = "GPL-2.0-or-later"
 

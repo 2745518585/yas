@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - '*'
-  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,11 +27,11 @@ jobs:
       #       target/
       #     key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Extract git-rev
-        run: |
-          $commitCount = git rev-list --count HEAD
-          $shortHash = git rev-parse --short HEAD
-          "GIT_REV=r$commitCount.$shortHash" | Out-File -FilePath $env:GITHUB_ENV -Append
+      # - name: Extract git-rev
+      #   run: |
+      #     $commitCount = git rev-list --count HEAD
+      #     $shortHash = git rev-parse --short HEAD
+      #     "GIT_REV=r$commitCount.$shortHash" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Setup Toolchain
         run: rustup default nightly-msvc

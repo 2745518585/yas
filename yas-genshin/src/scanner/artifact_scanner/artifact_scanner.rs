@@ -41,7 +41,7 @@ pub struct GenshinArtifactScanner {
 }
 
 impl GenshinArtifactScanner {
-    pub const MAX_COUNT: usize = 2100;
+    pub const MAX_COUNT: usize = 2400;
 }
 
 // constructor

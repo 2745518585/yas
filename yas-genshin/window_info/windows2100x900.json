@@ -157,7 +157,7 @@
       }
     },
     "genshin_artifact_sanctifying_elixir": {
-      "InvariantFloat": 33.0
+      "Float": 33.0
     }
   }
 }

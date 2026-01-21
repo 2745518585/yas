@@ -39,7 +39,10 @@ pub struct ArtifactScannerWindowInfo {
     /// the sample position of star, relative to window
     #[window_info(rename = "genshin_artifact_star_pos")]
     pub star_pos: Pos<f64>,
-    
+
+    #[window_info(rename = "genshin_artifact_offset")]
+    pub artifact_panel_offset: Size<f64>,
+
     #[window_info(rename = "genshin_artifact_sanctifying_elixir")]
     pub sanctifying_elixir: f64,
 

@@ -129,6 +129,7 @@ impl ArtifactScannerWorker {
         let col = self.window_info.col;
         let gap = self.window_info.item_gap_size;
         let size = self.window_info.item_size;
+        let offset = self.window_info.artifact_panel_offset;
         let lock_pos = self.window_info.lock_pos;
 
         for r in 0..row {
@@ -136,8 +137,8 @@ impl ArtifactScannerWorker {
                 break;
             }
             for c in 0..col {
-                let pos_x = (gap.width + size.width) * (c as f64) + lock_pos.x;
-                let pos_y = (gap.height + size.height) * (r as f64) + lock_pos.y;
+                let pos_x = (gap.width + size.width) * (c as f64) + offset.width + lock_pos.x;
+                let pos_y = (gap.height + size.height) * (r as f64) + offset.height + lock_pos.y;
 
                 let mut locked = false;
                 'sq: for dx in -1..1 {

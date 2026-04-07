@@ -63,3 +63,7 @@ jobs:
           artifacts: 'yas_artifact_${{ github.ref_name }}.exe'
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
+          body: |
+            Supported up to version ${{ github.ref_name }}.
+
+            This executable is compiled by an automated process.

@@ -100,6 +100,8 @@ pub enum ArtifactSetName {
     SilkenMoonsSerenade,
     AubadeOfMorningstarAndMoon,
     ADayCarvedFromRisingWinds,
+    CelestialGift,
+    DisenchantmentInDeepShadow,
 }
 
 #[derive(Debug, Clone)]
@@ -454,6 +456,8 @@ impl ArtifactSetName {
             "流离者的晶泪" | "受福者的白羽" | "祭霜者的迷狂" | "至纯者的欢荣" | "司信者的圣冕" => Some(ArtifactSetName::SilkenMoonsSerenade),
             "献与月的华梦" | "献与月的离光" | "献与月的终时" | "献与月的酹祭" | "献与月的银冕" => Some(ArtifactSetName::AubadeOfMorningstarAndMoon),
             "风花的箴铭" | "晨光的明誓" | "春律的片刻" | "未言的宴话" | "哀慕的恋歌" => Some(ArtifactSetName::ADayCarvedFromRisingWinds),
+            "天授之馨" | "天授之殁" | "天授之令" | "天授之禄" | "天授之冕" => Some(ArtifactSetName::CelestialGift),
+            "止于荣礼的缎彩" | "止于妙想成型的锋毫" | "止于宏伟梦醒的时刻" | "止于祝庆的喝礼" | "止于阔步跌坠的灵摆" => Some(ArtifactSetName::DisenchantmentInDeepShadow),
             _ => None,
         }
     }
@@ -743,6 +747,16 @@ impl ArtifactSlot {
             "春律的片刻" => Some(ArtifactSlot::Sand),
             "未言的宴话" => Some(ArtifactSlot::Goblet),
             "哀慕的恋歌" => Some(ArtifactSlot::Head),
+            "天授之馨" => Some(ArtifactSlot::Flower),
+            "天授之殁" => Some(ArtifactSlot::Feather),
+            "天授之令" => Some(ArtifactSlot::Sand),
+            "天授之禄" => Some(ArtifactSlot::Goblet),
+            "天授之冕" => Some(ArtifactSlot::Head),
+            "止于荣礼的缎彩" => Some(ArtifactSlot::Flower),
+            "止于妙想成型的锋毫" => Some(ArtifactSlot::Feather),
+            "止于宏伟梦醒的时刻" => Some(ArtifactSlot::Sand),
+            "止于祝庆的喝礼" => Some(ArtifactSlot::Goblet),
+            "止于阔步跌坠的灵摆" => Some(ArtifactSlot::Head),
             _ => None,
         }
     }

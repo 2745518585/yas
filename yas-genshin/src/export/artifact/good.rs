@@ -171,6 +171,8 @@ impl ArtifactSetName {
             ArtifactSetName::SilkenMoonsSerenade => "SilkenMoonsSerenade",
             ArtifactSetName::AubadeOfMorningstarAndMoon => "AubadeOfMorningstarAndMoon",
             ArtifactSetName::ADayCarvedFromRisingWinds => "ADayCarvedFromRisingWinds",
+            ArtifactSetName::CelestialGift => "CelestialGift",
+            ArtifactSetName::DisenchantmentInDeepShadow => "DisenchantmentInDeepShadow",
         }
     }
 }

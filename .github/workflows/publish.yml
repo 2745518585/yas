@@ -11,6 +11,10 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+
+    environment:
+      name: publish
+
     steps:
       - uses: actions/checkout@v4
         with:

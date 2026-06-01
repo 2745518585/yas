@@ -145,6 +145,8 @@ impl ArtifactSetName {
             ArtifactSetName::SilkenMoonsSerenade => "silken_moons_serenade",
             ArtifactSetName::AubadeOfMorningstarAndMoon => "aubade_of_morningstar_and_moon",
             ArtifactSetName::ADayCarvedFromRisingWinds => "a_day_carved_from_rising_winds",
+            ArtifactSetName::CelestialGift => "celestial_gift",
+            ArtifactSetName::DisenchantmentInDeepShadow => "disenchantment_in_deep_shadow",
 
             // Not supported by Mingyulab
             ArtifactSetName::Adventurer => unreachable!(),

@@ -147,6 +147,8 @@ impl ArtifactSetName {
             ArtifactSetName::ADayCarvedFromRisingWinds => "a_day_carved_from_rising_winds",
             ArtifactSetName::CelestialGift => "celestial_gift",
             ArtifactSetName::DisenchantmentInDeepShadow => "disenchantment_in_deep_shadow",
+            ArtifactSetName::ScarletProof => "scarlet_proof",
+            ArtifactSetName::HeartOfTheFurnace => "heart_of_the_furnace",
 
             // Not supported by Mingyulab
             ArtifactSetName::Adventurer => unreachable!(),

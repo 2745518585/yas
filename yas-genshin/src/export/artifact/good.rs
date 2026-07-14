@@ -173,6 +173,8 @@ impl ArtifactSetName {
             ArtifactSetName::ADayCarvedFromRisingWinds => "ADayCarvedFromRisingWinds",
             ArtifactSetName::CelestialGift => "CelestialGift",
             ArtifactSetName::DisenchantmentInDeepShadow => "DisenchantmentInDeepShadow",
+            ArtifactSetName::ScarletProof => "ScarletProof",
+            ArtifactSetName::HeartOfTheFurnace => "HeartOfTheFurnace",
         }
     }
 }

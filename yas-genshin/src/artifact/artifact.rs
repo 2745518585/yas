@@ -102,6 +102,8 @@ pub enum ArtifactSetName {
     ADayCarvedFromRisingWinds,
     CelestialGift,
     DisenchantmentInDeepShadow,
+    ScarletProof,
+    HeartOfTheFurnace,
 }
 
 #[derive(Debug, Clone)]
@@ -458,6 +460,8 @@ impl ArtifactSetName {
             "风花的箴铭" | "晨光的明誓" | "春律的片刻" | "未言的宴话" | "哀慕的恋歌" => Some(ArtifactSetName::ADayCarvedFromRisingWinds),
             "天授之馨" | "天授之殁" | "天授之令" | "天授之禄" | "天授之冕" => Some(ArtifactSetName::CelestialGift),
             "止于荣礼的缎彩" | "止于妙想成型的锋毫" | "止于宏伟梦醒的时刻" | "止于祝庆的喝礼" | "止于阔步跌坠的灵摆" => Some(ArtifactSetName::DisenchantmentInDeepShadow),
+            "感谢你的奉献" | "铭记你的功勋" | "授予你的年华" | "饮尽你的血泪" | "缅怀你的信仰" => Some(ArtifactSetName::ScarletProof),
+            "熔铸者的揣度" | "熔铸者的观测" | "熔铸者的计算" | "熔铸者的雅量" | "熔铸者的继志" => Some(ArtifactSetName::HeartOfTheFurnace),
             _ => None,
         }
     }
@@ -757,6 +761,16 @@ impl ArtifactSlot {
             "止于宏伟梦醒的时刻" => Some(ArtifactSlot::Sand),
             "止于祝庆的喝礼" => Some(ArtifactSlot::Goblet),
             "止于阔步跌坠的灵摆" => Some(ArtifactSlot::Head),
+            "感谢你的奉献" => Some(ArtifactSlot::Flower),
+            "铭记你的功勋" => Some(ArtifactSlot::Feather),
+            "授予你的年华" => Some(ArtifactSlot::Sand),
+            "饮尽你的血泪" => Some(ArtifactSlot::Goblet),
+            "缅怀你的信仰" => Some(ArtifactSlot::Head),
+            "熔铸者的揣度" => Some(ArtifactSlot::Flower),
+            "熔铸者的观测" => Some(ArtifactSlot::Feather),
+            "熔铸者的计算" => Some(ArtifactSlot::Sand),
+            "熔铸者的雅量" => Some(ArtifactSlot::Goblet),
+            "熔铸者的继志" => Some(ArtifactSlot::Head),
             _ => None,
         }
     }

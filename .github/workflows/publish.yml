@@ -40,6 +40,9 @@ jobs:
       - name: Setup Toolchain
         run: rustup default nightly-msvc
 
+      - name: Prepare ONNX Runtime output directories
+        run: New-Item -ItemType Directory -Force -Path ./target/release/build/examples, ./target/release/build/deps | Out-Null
+
       # - name: Set version in Cargo.toml
       #   run: |
       #     $files = @(

@@ -10,7 +10,7 @@ use crate::ocr::paddle_paddle_model::preprocess::resize_img;
 use crate::positioning::Shape3D;
 use crate::utils::read_file_to_string;
 #[cfg(feature = "ort")]
-use ort::GraphOptimizationLevel;
+use ort::{session::{builder::GraphOptimizationLevel, Session}, value::Tensor};
 #[cfg(feature = "tract_onnx")]
 use tract_onnx::prelude::*;
 #[cfg(feature = "tract_onnx")]
@@ -29,7 +29,7 @@ pub struct PPOCRModel {
     #[cfg(feature = "tract_onnx")]
     model: ModelType,
     #[cfg(feature = "ort")]
-    model: ort::Session,
+    model: RefCell<Session>,
 
     inference_count: RefCell<usize>,
     inference_time: RefCell<Duration>,
@@ -52,7 +52,7 @@ impl PPOCRModel {
         let index_to_word = parse_index_to_word(&words_str, true);
 
         #[cfg(feature = "ort")]
-        let model = ort::Session::builder()?
+        let model = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
             .commit_from_file(onnx_file)?;
@@ -71,6 +71,9 @@ impl PPOCRModel {
 
         Ok(Self {
             index_to_word,
+            #[cfg(feature = "ort")]
+            model: RefCell::new(model),
+            #[cfg(feature = "tract_onnx")]
             model,
             inference_count: RefCell::new(0),
             inference_time: RefCell::new(Duration::new(0, 0)),
@@ -79,7 +82,7 @@ impl PPOCRModel {
 
     pub fn new(onnx: &[u8], index_to_word: Vec<String>) -> Result<Self> {
         #[cfg(feature = "ort")]
-        let model = ort::Session::builder()?
+        let model = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
             .commit_from_memory(onnx)?;
@@ -98,6 +101,9 @@ impl PPOCRModel {
 
         Ok(Self {
             index_to_word,
+            #[cfg(feature = "ort")]
+            model: RefCell::new(model),
+            #[cfg(feature = "tract_onnx")]
             model,
             inference_count: RefCell::new(0),
             inference_time: RefCell::new(Duration::new(0, 0)),
@@ -127,12 +133,14 @@ impl ImageToText<RgbImage> for PPOCRModel {
         let tensor = normalize_image_to_tensor(&resized_image);
 
         #[cfg(feature = "ort")]
-        let result = self.model.run(ort::inputs![tensor]?)?;
+        let mut model = self.model.borrow_mut();
+        #[cfg(feature = "ort")]
+        let result = model.run(ort::inputs![Tensor::from_array(tensor)?])?;
         #[cfg(feature = "tract_onnx")]
         let result = self.model.run(tvec!(tensor.into()))?;
 
         #[cfg(feature = "ort")]
-        let arr = result[0].try_extract_tensor()?;
+        let arr = result[0].try_extract_array::<f32>()?;
         #[cfg(feature = "tract_onnx")]
         let arr = result[0].to_array_view::<f32>()?;
 

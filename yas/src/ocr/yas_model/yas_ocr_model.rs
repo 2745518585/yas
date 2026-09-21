@@ -6,6 +6,8 @@ use crate::ocr::traits::ImageToText;
 use super::preprocess;
 use anyhow::Result;
 use crate::common::image_ext::*;
+#[cfg(feature = "ort")]
+use ort::{session::{builder::GraphOptimizationLevel, Session}, value::Tensor};
 #[cfg(feature = "tract_onnx")]
 use tract_onnx::prelude::*;
 
@@ -14,7 +16,7 @@ type ModelType = RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box
 
 pub struct YasOCRModel {
     #[cfg(feature = "ort")]
-    model: ort::Session,
+    model: RefCell<Session>,
     #[cfg(feature = "tract_onnx")]
     model: ModelType,
     index_to_word: Vec<String>,
@@ -37,8 +39,8 @@ impl YasOCRModel {
 
     pub fn new(model: &[u8], content: &str) -> Result<YasOCRModel> {
         #[cfg(feature = "ort")]
-        let model = ort::Session::builder()?
-            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
+        let model = Session::builder()?
+            .with_optimization_level(GraphOptimizationLevel::Level3)?
             .with_intra_threads(4)?
             .commit_from_memory(model)?;
         #[cfg(feature = "tract_onnx")]
@@ -62,6 +64,9 @@ impl YasOCRModel {
         let index_to_word = index_to_word.into_iter().map(|(_, v)| v).collect();
 
         Ok(YasOCRModel {
+            #[cfg(feature = "ort")]
+            model: RefCell::new(model),
+            #[cfg(feature = "tract_onnx")]
             model,
             index_to_word,
             inference_time: RefCell::new(Duration::new(0, 0)),
@@ -83,12 +88,14 @@ impl YasOCRModel {
             }).into();
 
         #[cfg(feature = "ort")]
-        let result = self.model.run(ort::inputs![tensor]?)?;
+        let mut model = self.model.borrow_mut();
+        #[cfg(feature = "ort")]
+        let result = model.run(ort::inputs![Tensor::from_array(tensor)?])?;
         #[cfg(feature = "tract_onnx")]
         let result = self.model.run(tvec!(tensor.into()))?;
 
         #[cfg(feature = "ort")]
-        let arr = result[0].try_extract_tensor()?;
+        let arr = result[0].try_extract_array::<f32>()?;
         #[cfg(feature = "tract_onnx")]
         let arr = result[0].to_array_view::<f32>()?;
 

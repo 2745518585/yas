@@ -1,42 +1,18 @@
-use clap::{command, Command};
-use yas::utils::press_any_key_to_continue;
+use clap::command;
+use std::process::ExitCode;
 use yas_genshin::application::ArtifactScannerApplication;
 
-fn get_genshin_command() -> Command {
-    let cmd = ArtifactScannerApplication::build_command();
-    cmd.name("genshin")
-}
-
-fn init() {
+fn main() -> ExitCode {
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Info)
         .init();
-}
-
-pub fn main() {
-    init();
-    let cmd = command!()
-        .subcommand(get_genshin_command());
-    let arg_matches = cmd.get_matches();
-
-    let res = if let Some((subcommand_name, matches)) = arg_matches.subcommand() {
-        if subcommand_name == "genshin" {
-            let application = ArtifactScannerApplication::new(matches.clone());
-            application.run()
-        } else {
-            Ok(())
-        }
-    } else {
-        Ok(())
-    };
-
-    match res {
-        Ok(_) => {
-            press_any_key_to_continue();
-        },
-        Err(e) => {
-            log::error!("error: {}", e);
-            press_any_key_to_continue();
-        }
-    }
+    let genshin =
+        yas_application::web::augment_command(ArtifactScannerApplication::build_command())
+            .name("genshin");
+    let matches = command!()
+        .subcommand_required(true)
+        .subcommand(genshin)
+        .get_matches();
+    let (_, matches) = matches.subcommand().expect("required subcommand");
+    yas_application::run_artifacts(matches.clone(), &["genshin"])
 }

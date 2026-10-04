@@ -58,7 +58,15 @@ jobs:
       #     }
 
       - name: Build (Release)
-        run: cargo build --release
+        run: cargo build --release --locked -p yas-application
+
+      - name: Package web scanner
+        run: |
+          New-Item -ItemType Directory -Force -Path yas-web | Out-Null
+          Copy-Item ./target/release/yas_artifact.exe ./yas-web/yas_artifact.exe
+          Copy-Item ./web/* ./yas-web/
+          Get-ChildItem ./target/release -Filter *.dll | Copy-Item -Destination ./yas-web/
+          Compress-Archive -Path ./yas-web/* -DestinationPath "yas_web_${{ github.ref_name }}.zip"
 
       - name: Rename Outputs
         run: |
@@ -67,10 +75,12 @@ jobs:
       - name: Upload Release
         uses: ncipollo/release-action@v1.12.0
         with:
-          artifacts: 'yas_artifact_${{ github.ref_name }}.exe'
+          artifacts: 'yas_artifact_${{ github.ref_name }}.exe,yas_web_${{ github.ref_name }}.zip'
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           body: |
             Supported up to version ${{ github.ref_name }}.
 
             This executable is compiled by an automated process.
+
+            网页扫描请下载 yas_web_${{ github.ref_name }}.zip，解压并运行「安装网页连接.cmd」。

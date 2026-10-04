@@ -172,6 +172,15 @@ impl GenshinArtifactScanner {
     }
 
     pub fn scan(&mut self) -> Result<Vec<GenshinArtifactScanResult>> {
+        self.scan_with_completion(false)
+    }
+
+    /// Automation must never import a partial scan as a successful inventory.
+    pub fn scan_require_complete(&mut self) -> Result<Vec<GenshinArtifactScanResult>> {
+        self.scan_with_completion(true)
+    }
+
+    fn scan_with_completion(&mut self, require_complete: bool) -> Result<Vec<GenshinArtifactScanResult>> {
         info!("开始扫描，使用鼠标右键中断扫描");
 
         let now = SystemTime::now();
@@ -183,10 +192,11 @@ impl GenshinArtifactScanner {
             self.scanner_config.clone(),
         )?;
 
-        let join_handle = worker.run(rx);
+        let join_handle = worker.run(rx, require_complete);
         info!("Worker created");
 
-        self.send(&tx, count);
+        let send_result = self.send(&tx, count);
+        if let Err(error) = &send_result { error!("扫描未完成：{error:#}"); }
 
         match tx.send(None) {
             Ok(_) => info!("扫描结束，等待识别线程结束，请勿关闭程序"),
@@ -194,7 +204,10 @@ impl GenshinArtifactScanner {
         }
 
         match join_handle.join() {
-            Ok(v) => {
+            Ok(Ok((v, filtered))) => {
+                if require_complete && !send_result? && !filtered {
+                    return Err(anyhow::anyhow!("识别线程提前结束，扫描未完成"));
+                }
                 info!("识别耗时: {:?}", now.elapsed()?);
 
                 // filter min level
@@ -205,6 +218,7 @@ impl GenshinArtifactScanner {
 
                 Ok(v)
             }
+            Ok(Err(error)) => Err(error),
             Err(_) => Err(anyhow::anyhow!("识别线程出现错误")),
         }
     }
@@ -235,7 +249,7 @@ impl GenshinArtifactScanner {
         }
     }
 
-    fn send(&mut self, tx: &Sender<Option<SendItem>>, count: i32) {
+    fn send(&mut self, tx: &Sender<Option<SendItem>>, count: i32) -> Result<bool> {
         let mut generator = GenshinRepositoryScanController::get_generator(self.controller.clone(), count as usize);
         let mut artifact_index: i32 = 0;
 
@@ -243,8 +257,8 @@ impl GenshinArtifactScanner {
             let pinned_generator = Pin::new(&mut generator);
             match pinned_generator.resume(()) {
                 CoroutineState::Yielded(_) => {
-                    let image = self.capture_panel().unwrap();
-                    let star = self.get_star().unwrap();
+                    let image = self.capture_panel()?;
+                    let star = self.get_star()?;
 
                     let list_image = if self.is_page_first_artifact(artifact_index) {
                         let origin = self.game_info.window;
@@ -273,7 +287,7 @@ impl GenshinArtifactScanner {
                                 width,
                                 height,
                             })
-                            .unwrap();
+                            ?;
                         Some(game_image)
                     } else {
                         None
@@ -299,25 +313,19 @@ impl GenshinArtifactScanner {
                         }))
                         .is_err()
                     {
-                        break;
+                        return Ok(false);
                     }
 
                     // scanned_count += 1;
                 }
                 CoroutineState::Complete(result) => {
-                    match result {
-                        Err(e) => error!("扫描发生错误：{}", e),
-                        Ok(value) => {
-                            match value {
-                                GenshinRepositoryControllerReturnResult::Interrupted => info!("用户中断"),
-                                GenshinRepositoryControllerReturnResult::Finished => ()
-                            }
-                        }
-                    }
-
-                    break;
+                    return match result? {
+                        GenshinRepositoryControllerReturnResult::Interrupted => Err(anyhow::anyhow!("用户中断扫描")),
+                        GenshinRepositoryControllerReturnResult::Finished => Ok(true),
+                    };
                 }
             }
         }
+        Ok(true)
     }
 }

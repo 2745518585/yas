@@ -1,0 +1,35 @@
+name: Check YAS
+
+on:
+  pull_request:
+  push:
+    branches: [main, v7.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Prepare ONNX Runtime output directories
+        run: New-Item -ItemType Directory -Force -Path ./target/release/build/examples, ./target/release/build/deps | Out-Null
+      - name: Build scanner and bridge
+        run: cargo build --release --locked -p yas-application
+      - name: Check bridge validation
+        run: cargo test --release --locked -p yas-application --lib
+      - name: Package web scanner
+        run: |
+          New-Item -ItemType Directory -Force -Path yas-web | Out-Null
+          Copy-Item ./target/release/yas_artifact.exe ./yas-web/yas_artifact.exe
+          Copy-Item ./web/* ./yas-web/
+          Get-ChildItem ./target/release -Filter *.dll | Copy-Item -Destination ./yas-web/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yas-web-windows
+          path: yas-web/

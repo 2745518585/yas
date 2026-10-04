@@ -162,7 +162,7 @@ impl ArtifactScannerWorker {
         result
     }
 
-    pub fn run(self, rx: Receiver<Option<SendItem>>) -> JoinHandle<Vec<GenshinArtifactScanResult>> {
+    pub fn run(self, rx: Receiver<Option<SendItem>>, require_complete: bool) -> JoinHandle<Result<(Vec<GenshinArtifactScanResult>, bool)>> {
         std::thread::spawn(move || {
             let mut results = Vec::new();
             let mut hash: HashSet<GenshinArtifactScanResult> = HashSet::new();
@@ -200,6 +200,7 @@ impl ArtifactScannerWorker {
                     Ok(v) => v,
                     Err(e) => {
                         error!("识别错误: {}", e);
+                        if require_complete { return Err(e); }
                         continue;
                     }
                 };
@@ -213,7 +214,7 @@ impl ArtifactScannerWorker {
                         "找到满足最低等级要求 {} 的物品({})，准备退出……",
                         min_level, result.level
                     );
-                    break;
+                    return Ok((results, true));
                 }
 
                 if hash.contains(&result) {
@@ -227,6 +228,7 @@ impl ArtifactScannerWorker {
 
                 if consecutive_dup_count >= info.col && !self.config.ignore_dup {
                     error!("识别到连续多个重复物品，可能为翻页错误，或者为非背包顶部开始扫描");
+                    if require_complete { return Err(anyhow::anyhow!("识别到连续多个重复物品，扫描未完成")); }
                     // token.cancel();
                     break;
                 }
@@ -242,7 +244,7 @@ impl ArtifactScannerWorker {
             // progress_bar.finish();
             // MULTI_PROGRESS.remove(&progress_bar);
 
-            results
+            Ok((results, false))
         })
     }
 }

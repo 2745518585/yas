@@ -33,6 +33,8 @@ yas.exe genshin
 
 ### Windows
 
+网页直接扫描请下载发布页的 `yas_web_*.zip`，解压并运行「安装网页连接.cmd」，再回到网页点击「启动并连接 YAS」。[网页连接包使用说明](web/README.md)包含安装、更新和卸载步骤；[接口说明](docs/web-bridge.md)供前端接入使用。旧版单文件程序不支持网页连接。
+
 - 打开原神/星铁，并切换到背包页面，将背包拉到最上面
 - 如果是`yas.exe`，需要用命令行运行`yas.exe genshin`，如果是`yas_artifact.exe`，直接运行即可
 - 扫描过程中，鼠标右键终止

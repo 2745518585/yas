@@ -8,7 +8,7 @@
 yas-scan://connect?origin=<encodeURIComponent(location.origin)>&token=<token>
 ```
 
-唤起参数仅接受规范的 HTTPS 来源（开发时允许 HTTP localhost、127.0.0.1、[::1]）及令牌。YAS 使用原生 Windows 弹窗让用户确认来源。服务已运行时，新进程把授权申请交给现有服务。网站不能自行授予权限。
+唤起参数仅接受规范的 HTTPS 来源（开发时允许 HTTP localhost、127.0.0.1、[::1]）及令牌。YAS 使用原生 Windows 弹窗让用户确认来源。端口被占用时，新进程直接报错，不向占用端口的进程转交令牌。确认 YAS 服务已经运行时，可在网页选择「连接已运行的 YAS」，或关闭现有服务后重新唤起。网站不能自行授予权限。
 
 所有 HTTP 请求的 Host 必须是 `127.0.0.1:32334` 或 `localhost:32334`。除 info 外，请求必须携带合法的 Origin；除 connect 外，还必须携带 `Authorization: Bearer <token>`。令牌只对用户授权的 Origin 有效。会话闲置八小时后失效，拒绝授权需要生成新令牌后重试。
 

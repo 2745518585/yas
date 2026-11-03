@@ -7,12 +7,13 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    io::{Read, Write},
-    net::TcpStream,
+    io::Read,
     time::{Duration, Instant},
 };
 use tiny_http::{Header, Method, Request, Response, Server};
 use url::Url;
+
+const SESSION_IDLE_TIMEOUT: Duration = Duration::from_secs(8 * 3600);
 
 struct Session {
     origin: String,
@@ -81,8 +82,19 @@ fn reply(request: Request, status: u16, value: Value, origin: Option<&str>) {
 
 impl Bridge {
     fn connect(&mut self, connection: Connection) -> Result<bool> {
+        self.connect_with_authorizer(connection, platform::authorize)
+    }
+
+    fn connect_with_authorizer(
+        &mut self,
+        connection: Connection,
+        authorize: impl FnOnce(&Connection) -> bool,
+    ) -> Result<bool> {
         validate_origin(&connection.origin)?;
         validate_token(&connection.token)?;
+        // Expired tokens must go through consent again, including on reconnect.
+        self.sessions
+            .retain(|_, session| session.touched.elapsed() < SESSION_IDLE_TIMEOUT);
         if let Some(session) = self.sessions.get_mut(&connection.token) {
             if session.origin != connection.origin {
                 bail!("连接来源不匹配");
@@ -93,12 +105,10 @@ impl Bridge {
         if self.jobs.iter().any(|job| job.lock().unwrap().running()) {
             bail!("扫描正在运行，请完成或取消后再授权新连接");
         }
-        self.sessions
-            .retain(|_, session| session.touched.elapsed() < Duration::from_secs(8 * 3600));
         if self.sessions.len() >= 16 {
             bail!("连接数量已达上限，请关闭 YAS 网页服务后重试");
         }
-        let allowed = platform::authorize(&connection);
+        let allowed = authorize(&connection);
         self.sessions.insert(
             connection.token,
             Session {
@@ -117,7 +127,7 @@ impl Bridge {
         let session = self.sessions.get_mut(token).context("请先连接并授权 YAS")?;
         if session.origin != origin
             || !session.allowed
-            || session.touched.elapsed() > Duration::from_secs(8 * 3600)
+            || session.touched.elapsed() >= SESSION_IDLE_TIMEOUT
         {
             bail!("YAS 授权已拒绝或过期，请重新连接");
         }
@@ -263,42 +273,19 @@ impl Bridge {
     }
 }
 
-fn local_request(method: &str, path: &str, origin: &str, body: &str) -> Result<String> {
-    let mut stream = TcpStream::connect_timeout(&ADDRESS.parse()?, Duration::from_secs(2))?;
-    stream.set_read_timeout(Some(Duration::from_secs(120)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
-    write!(stream, "{method} {path} HTTP/1.1\r\nHost: {ADDRESS}\r\nOrigin: {origin}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())?;
-    let mut response = String::new();
-    stream.take(32768).read_to_string(&mut response)?;
-    Ok(response)
+fn listen(address: &str) -> Result<Server> {
+    // A product marker cannot authenticate the process occupying this port.
+    // Never forward launch credentials when we cannot bind our own listener.
+    Server::http(address).map_err(|error| {
+        anyhow::anyhow!("无法启动网页服务（{address}）：请关闭占用端口的程序，或在网页选择「连接已运行的 YAS」：{error}")
+    })
 }
 
 pub fn serve(launch: Option<Connection>, prefix: &[&str]) -> Result<()> {
     if !yas::utils::is_admin() {
         bail!("请以管理员身份运行 YAS 网页服务");
     }
-    let server = match Server::http(ADDRESS) {
-        Ok(server) => server,
-        Err(error) => {
-            let Some(connection) = launch else {
-                bail!("无法启动网页服务（可能已经运行）：{error}");
-            };
-            let info = local_request("GET", "/api/info", &connection.origin, "")?;
-            if !info.contains("\"product\":\"yas-web\"") {
-                bail!("网页连接端口被其他程序占用");
-            }
-            let response = local_request(
-                "POST",
-                "/api/connect",
-                &connection.origin,
-                &json!({"token":connection.token}).to_string(),
-            )?;
-            if !response.starts_with("HTTP/1.1 200") {
-                bail!("未获准连接，请在网页中重试");
-            }
-            return Ok(());
-        },
-    };
+    let server = listen(ADDRESS)?;
     let mut bridge = Bridge {
         sessions: HashMap::new(),
         jobs: Vec::new(),
@@ -321,4 +308,79 @@ pub fn serve(launch: Option<Connection>, prefix: &[&str]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bridge_with_session(allowed: bool, age: Duration) -> (Bridge, Connection) {
+        let connection = Connection {
+            origin: "https://example.com".into(),
+            token: "a".repeat(64),
+        };
+        let bridge = Bridge {
+            sessions: HashMap::from([(
+                connection.token.clone(),
+                Session {
+                    origin: connection.origin.clone(),
+                    allowed,
+                    touched: Instant::now() - age,
+                },
+            )]),
+            jobs: Vec::new(),
+            prefix: Vec::new(),
+        };
+        (bridge, connection)
+    }
+
+    #[test]
+    fn active_session_reuses_existing_consent() {
+        for allowed in [true, false] {
+            let (mut bridge, connection) = bridge_with_session(allowed, Duration::from_secs(60));
+            assert_eq!(
+                bridge.connect_with_authorizer(connection, |_| panic!("unexpected consent prompt"))
+                    .unwrap(),
+                allowed,
+            );
+        }
+    }
+
+    #[test]
+    fn expired_session_requires_new_consent() {
+        for was_allowed in [true, false] {
+            for allowed in [true, false] {
+                let (mut bridge, connection) = bridge_with_session(was_allowed, SESSION_IDLE_TIMEOUT);
+                let mut prompted = false;
+                assert_eq!(
+                    bridge.connect_with_authorizer(connection.clone(), |_| {
+                        prompted = true;
+                        allowed
+                    }).unwrap(),
+                    allowed,
+                );
+                assert!(prompted);
+                assert_eq!(bridge.sessions[&connection.token].allowed, allowed);
+            }
+        }
+    }
+
+    #[test]
+    fn reconnect_cannot_change_active_session_origin() {
+        let (mut bridge, mut connection) = bridge_with_session(true, Duration::from_secs(60));
+        connection.origin = "https://other.example.com".into();
+        assert!(bridge.connect_with_authorizer(connection, |_| panic!("unexpected consent prompt"))
+            .is_err());
+    }
+
+    #[test]
+    fn occupied_port_fails_without_contacting_listener() {
+        let existing = Server::http("127.0.0.1:0").unwrap();
+        let address = existing.server_addr().to_string();
+        let error = listen(&address).err()
+            .expect("an occupied port must be rejected");
+        assert!(error.to_string().contains("连接已运行的 YAS"));
+        assert!(existing.recv_timeout(Duration::from_millis(50))
+            .unwrap().is_none());
+    }
 }

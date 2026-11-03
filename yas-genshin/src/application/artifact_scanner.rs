@@ -70,6 +70,8 @@ impl ArtifactScannerApplication {
         if arg_matches.get_flag("no-pause") {
             GenshinRepositoryScannerLogicConfig::from_arg_matches(arg_matches)?
                 .validate_complete_scan()?;
+            GenshinArtifactScannerConfig::from_arg_matches(arg_matches)?
+                .validate_complete_scan()?;
         }
         let window_info_repository = Self::get_window_info_repository();
         let game_info = self.get_game_info()?;
@@ -138,5 +140,26 @@ mod tests {
             .unwrap();
         let error = ArtifactScannerApplication::new(matches).run().unwrap_err();
         assert!(error.to_string().contains("完整扫描不支持有限的 --max-row"));
+    }
+
+    #[test]
+    fn automation_rejects_ignored_duplicates_before_accessing_game() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--ignore-dup", "--number=1"])
+            .unwrap();
+        let error = ArtifactScannerApplication::new(matches).run().unwrap_err();
+        assert!(error.to_string().contains("完整扫描不支持 --ignore-dup"));
+    }
+
+    #[test]
+    fn automation_accepts_explicit_scan_scope() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--number=1", "--min-star=5", "--min-level=20"])
+            .unwrap();
+        let config = GenshinArtifactScannerConfig::from_arg_matches(&matches).unwrap();
+        assert_eq!((config.number, config.min_star, config.min_level), (1, 5, 20));
+        config.validate_complete_scan().unwrap();
+        GenshinRepositoryScannerLogicConfig::from_arg_matches(&matches)
+            .unwrap().validate_complete_scan().unwrap();
     }
 }

@@ -175,9 +175,11 @@ impl GenshinArtifactScanner {
         self.scan_with_completion(false)
     }
 
-    /// Automation must never import a partial scan as a successful inventory.
+    /// Complete the requested quantity and filters without swallowing scan errors.
+    /// This does not certify that the result covers the entire inventory.
     pub fn scan_require_complete(&mut self) -> Result<Vec<GenshinArtifactScanResult>> {
         self.controller.borrow().validate_complete_scan()?;
+        self.scanner_config.validate_complete_scan()?;
         self.scan_with_completion(true)
     }
 
@@ -196,7 +198,7 @@ impl GenshinArtifactScanner {
         let join_handle = worker.run(rx, require_complete);
         info!("Worker created");
 
-        let send_result = self.send(&tx, count);
+        let send_result = self.send(&tx, count, require_complete);
         if let Err(error) = &send_result { error!("扫描未完成：{error:#}"); }
 
         match tx.send(None) {
@@ -250,13 +252,14 @@ impl GenshinArtifactScanner {
         }
     }
 
-    fn send(&mut self, tx: &Sender<Option<SendItem>>, count: i32) -> Result<bool> {
+    fn send(&mut self, tx: &Sender<Option<SendItem>>, count: i32, require_complete: bool) -> Result<bool> {
         let mut artifact_index: i32 = 0;
         let mut worker_complete = true;
 
-        let result = GenshinRepositoryScanController::scan_with(
+        let result = GenshinRepositoryScanController::scan_with_completion(
             self.controller.clone(),
             count as usize,
+            require_complete,
             || {
                 let image = self.capture_panel()?;
                 let star = self.get_star()?;

@@ -20,3 +20,12 @@ pub struct GenshinArtifactScannerConfig {
     #[arg(id = "number", long, help = "指定圣遗物数量", value_name = "NUMBER", default_value_t = -1)]
     pub number: i32,
 }
+
+impl GenshinArtifactScannerConfig {
+    pub fn validate_complete_scan(&self) -> anyhow::Result<()> {
+        if self.ignore_dup {
+            anyhow::bail!("完整扫描不支持 --ignore-dup，必须保留连续重复物品检查");
+        }
+        Ok(())
+    }
+}

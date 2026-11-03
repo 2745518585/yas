@@ -177,6 +177,7 @@ impl GenshinArtifactScanner {
 
     /// Automation must never import a partial scan as a successful inventory.
     pub fn scan_require_complete(&mut self) -> Result<Vec<GenshinArtifactScanResult>> {
+        self.controller.borrow().validate_complete_scan()?;
         self.scan_with_completion(true)
     }
 

@@ -132,6 +132,10 @@ pub enum ReturnResult {
 }
 
 impl GenshinRepositoryScanController {
+    pub fn validate_complete_scan(&self) -> Result<()> {
+        self.config.validate_complete_scan()
+    }
+
     /// Call `on_item` after selecting each item, with no controller borrow held.
     /// The callback can finish early when filtering or the OCR worker is done.
     pub fn scan_with(

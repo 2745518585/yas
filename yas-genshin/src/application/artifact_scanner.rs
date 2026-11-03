@@ -1,6 +1,6 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use clap::{command, Arg, ArgAction, ArgMatches, Args};
+use clap::{command, Arg, ArgAction, ArgMatches, Args, FromArgMatches};
 use log::info;
 
 use yas::export::{AssetEmitter, ExportAssets};
@@ -66,6 +66,11 @@ impl ArtifactScannerApplication {
 impl ArtifactScannerApplication {
     pub fn run(&self) -> Result<()> {
         let arg_matches = &self.arg_matches;
+        // Reject truncating automation options before accessing the game window.
+        if arg_matches.get_flag("no-pause") {
+            GenshinRepositoryScannerLogicConfig::from_arg_matches(arg_matches)?
+                .validate_complete_scan()?;
+        }
         let window_info_repository = Self::get_window_info_repository();
         let game_info = self.get_game_info()?;
 
@@ -119,5 +124,19 @@ impl ArtifactScannerApplication {
         info!("Yas 识别结束，共识别到 {} 件圣遗物。", result.len());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn automation_rejects_row_limit_before_accessing_game() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--max-row=1"])
+            .unwrap();
+        let error = ArtifactScannerApplication::new(matches).run().unwrap_err();
+        assert!(error.to_string().contains("完整扫描不支持有限的 --max-row"));
     }
 }

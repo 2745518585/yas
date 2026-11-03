@@ -326,3 +326,17 @@ impl GenshinArtifactScanner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use yas::ocr::yas_ocr_model;
+
+    #[test]
+    fn embedded_ocr_model_loads_and_runs_from_memory() {
+        let model = yas_ocr_model!("./models/model_training.onnx", "./models/index_2_word.json")
+            .expect("the embedded OCR model must contain its own weights");
+        let image = image::ImageBuffer::<image::Luma<f32>, Vec<f32>>::new(384, 32);
+        model.inference_string(&image)
+            .expect("the embedded OCR model must support inference");
+    }
+}

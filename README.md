@@ -84,10 +84,20 @@ yas genshin --max-row=1
 
 在构建前，请确保安装`Git LFS`，并运行`git lfs pull`。否则[yas 在运行时会使用错误的模型](https://github.com/wormtql/yas/pull/102#issuecomment-1375503803)。
 
+仓库通过 `rust-toolchain.toml` 使用 Rust stable，CI 和发布构建也使用 stable。
+
+Windows 上安装 Visual Studio C++ 构建工具及 Windows SDK 后，在 PowerShell 中运行：
+
+```powershell
+New-Item -ItemType Directory -Force -Path target/release/build/examples, target/release/build/deps | Out-Null
+cargo build --release --locked -p yas-application
+```
+
+扫描程序输出到 `target/release/yas_artifact.exe`，通用入口为 `target/release/yas.exe`。
+
 ```shell
 # Linux 下需要首先安装 rustup 以及 mingw-w64 ，然后再安装对应的 rust target，
 # 构建到Linux需要 `libxdo` 和 `libxcb`
-rustup default stable
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --locked --target=x86_64-pc-windows-gnu
 ```

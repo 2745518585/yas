@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::{Coroutine, CoroutineState}, pin::Pin, rc::Rc, sync::mpsc::{self, Sender}, time::SystemTime};
+use std::{cell::RefCell, ops::ControlFlow, rc::Rc, sync::mpsc::{self, Sender}, time::SystemTime};
 
 use anyhow::Result;
 use clap::FromArgMatches;
@@ -250,82 +250,79 @@ impl GenshinArtifactScanner {
     }
 
     fn send(&mut self, tx: &Sender<Option<SendItem>>, count: i32) -> Result<bool> {
-        let mut generator = GenshinRepositoryScanController::get_generator(self.controller.clone(), count as usize);
         let mut artifact_index: i32 = 0;
+        let mut worker_complete = true;
 
-        loop {
-            let pinned_generator = Pin::new(&mut generator);
-            match pinned_generator.resume(()) {
-                CoroutineState::Yielded(_) => {
-                    let image = self.capture_panel()?;
-                    let star = self.get_star()?;
+        let result = GenshinRepositoryScanController::scan_with(
+            self.controller.clone(),
+            count as usize,
+            || {
+                let image = self.capture_panel()?;
+                let star = self.get_star()?;
 
-                    let list_image = if self.is_page_first_artifact(artifact_index) {
-                        let origin = self.game_info.window;
-                        let margin = self.window_info.scan_margin_pos;
-                        let gap = self.window_info.item_gap_size;
-                        let size = self.window_info.item_size;
+                let list_image = if self.is_page_first_artifact(artifact_index) {
+                    let origin = self.game_info.window;
+                    let margin = self.window_info.scan_margin_pos;
+                    let gap = self.window_info.item_gap_size;
+                    let size = self.window_info.item_size;
 
-                        let left = (origin.left as f64 + margin.x) as i32;
-                        let top = (origin.top as f64
-                            + margin.y
-                            + (gap.height + size.height)
-                            * self.get_start_row(count, artifact_index) as f64)
-                            as i32;
-                        let width = (origin.width as f64 - margin.x) as i32;
-                        let height = (origin.height as f64
-                            - margin.y
-                            - (gap.height + size.height)
-                            * self.get_start_row(count, artifact_index) as f64)
-                            as i32;
+                    let left = (origin.left as f64 + margin.x) as i32;
+                    let top = (origin.top as f64
+                        + margin.y
+                        + (gap.height + size.height)
+                        * self.get_start_row(count, artifact_index) as f64)
+                        as i32;
+                    let width = (origin.width as f64 - margin.x) as i32;
+                    let height = (origin.height as f64
+                        - margin.y
+                        - (gap.height + size.height)
+                        * self.get_start_row(count, artifact_index) as f64)
+                        as i32;
 
-                        let game_image = self
-                            .capturer
-                            .capture_rect(yas::positioning::Rect {
-                                left,
-                                top,
-                                width,
-                                height,
-                            })
-                            ?;
-                        Some(game_image)
-                    } else {
-                        None
-                    };
+                    let game_image = self
+                        .capturer
+                        .capture_rect(yas::positioning::Rect {
+                            left,
+                            top,
+                            width,
+                            height,
+                        })
+                        ?;
+                    Some(game_image)
+                } else {
+                    None
+                };
 
 
-                    artifact_index = artifact_index + 1;
+                artifact_index = artifact_index + 1;
 
-                    // todo normalize types
-                    if (star as i32) < self.scanner_config.min_star {
-                        info!(
-                            "找到满足最低星级要求 {} 的物品，准备退出……",
-                            self.scanner_config.min_star
-                        );
-                        break;
-                    }
-
-                    if tx
-                        .send(Some(SendItem {
-                            panel_image: image,
-                            star,
-                            list_image,
-                        }))
-                        .is_err()
-                    {
-                        return Ok(false);
-                    }
-
-                    // scanned_count += 1;
+                // todo normalize types
+                if (star as i32) < self.scanner_config.min_star {
+                    info!(
+                        "找到满足最低星级要求 {} 的物品，准备退出……",
+                        self.scanner_config.min_star
+                    );
+                    return Ok(ControlFlow::Break(()));
                 }
-                CoroutineState::Complete(result) => {
-                    return match result? {
-                        GenshinRepositoryControllerReturnResult::Interrupted => Err(anyhow::anyhow!("用户中断扫描")),
-                        GenshinRepositoryControllerReturnResult::Finished => Ok(true),
-                    };
+
+                if tx
+                    .send(Some(SendItem {
+                        panel_image: image,
+                        star,
+                        list_image,
+                    }))
+                    .is_err()
+                {
+                    worker_complete = false;
+                    return Ok(ControlFlow::Break(()));
                 }
-            }
+
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        match result {
+            GenshinRepositoryControllerReturnResult::Interrupted => Err(anyhow::anyhow!("用户中断扫描")),
+            GenshinRepositoryControllerReturnResult::Finished => Ok(worker_complete),
         }
-        Ok(true)
     }
 }

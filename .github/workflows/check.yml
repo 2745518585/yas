@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           lfs: true
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
       - name: Prepare ONNX Runtime output directories
         run: New-Item -ItemType Directory -Force -Path ./target/release/build/examples, ./target/release/build/deps | Out-Null
       - name: Build scanner and bridge

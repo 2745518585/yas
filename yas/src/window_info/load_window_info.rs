@@ -22,17 +22,24 @@ impl WindowInfoTemplatePerSize {
     }
 }
 
-pub macro load_window_info_repo($($filename:literal),+ $(,)?) {
-    {
-        let mut result = WindowInfoRepository::new();
+#[doc(hidden)]
+pub fn inject_window_info_template(repo: &mut WindowInfoRepository, json: &str) {
+    let template: WindowInfoTemplatePerSize = serde_json::from_str(json).unwrap();
+    template.inject_into_window_info_repo(repo);
+}
+
+#[macro_export]
+macro_rules! load_window_info_repo {
+    ($($filename:literal),+ $(,)?) => {{
+        let mut result = $crate::window_info::WindowInfoRepository::new();
         $(
             {
-                let s = include_str!($filename);
-                let f: WindowInfoTemplatePerSize = serde_json::from_str(&s).unwrap();
-                f.inject_into_window_info_repo(&mut result);
+                $crate::window_info::inject_window_info_template(
+                    &mut result, include_str!($filename),
+                );
             }
         )*
         result
-    }
+    }};
 }
 

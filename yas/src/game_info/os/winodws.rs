@@ -9,7 +9,7 @@ fn is_window_cloud(title: &str) -> bool {
     title.starts_with("云")
 }
 
-fn get_window(window_names: &[&str]) -> Result<(HWND, bool)> {
+fn get_window(window_names: &[&str], selected: Option<isize>, interactive: bool) -> Result<(HWND, bool)> {
     let handles = utils::iterate_window();
     let mut viable_handles = Vec::new();
     for hwnd in handles.iter() {
@@ -35,21 +35,29 @@ fn get_window(window_names: &[&str]) -> Result<(HWND, bool)> {
     //     }
     // }
 
+    if let Some(selected) = selected {
+        return viable_handles.iter().find(|(hwnd, _)| *hwnd as isize == selected)
+            .map(|(hwnd, title)| (*hwnd, is_window_cloud(title)))
+            .ok_or_else(|| anyhow!("所选游戏窗口已关闭，请刷新窗口列表"));
+    }
     if viable_handles.len() == 1 {
         return Ok((viable_handles[0].0, is_window_cloud(&viable_handles[0].1)));
     } else if viable_handles.len() == 0 {
         return Err(anyhow!("未找到游戏窗口，请确认{:?}已经开启", window_names));
     }
 
+    if !interactive {
+        return Err(anyhow!("找到多个游戏窗口，请指定 --hwnd"));
+    }
     println!("找到多个符合名称的窗口，请手动选择窗口：");
     for (i, (hwnd, title)) in viable_handles.iter().enumerate() {
         println!("{}: {}", i, title);
     }
     let mut index = String::new();
-    stdin().read_line(&mut index);
+    stdin().read_line(&mut index)?;
 
     let idx = index.trim().parse::<usize>()?;
-    if idx >= 0 && idx < viable_handles.len() {
+    if idx < viable_handles.len() {
         let is_cloud = is_window_cloud(&viable_handles[idx].1);
         Ok((viable_handles[idx].0, is_cloud))
     } else {
@@ -58,9 +66,13 @@ fn get_window(window_names: &[&str]) -> Result<(HWND, bool)> {
 }
 
 pub fn get_game_info(window_names: &[&str]) -> Result<GameInfo> {
+    get_game_info_with_window(window_names, None, true)
+}
+
+pub fn get_game_info_with_window(window_names: &[&str], hwnd: Option<isize>, interactive: bool) -> Result<GameInfo> {
     utils::set_dpi_awareness();
 
-    let (hwnd, is_cloud) = get_window(window_names)?;
+    let (hwnd, is_cloud) = get_window(window_names, hwnd, interactive)?;
 
     unsafe {
         ShowWindow(hwnd, SW_RESTORE);

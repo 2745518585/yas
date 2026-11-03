@@ -1,6 +1,6 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use clap::{command, ArgMatches, Args};
+use clap::{command, Arg, ArgAction, ArgMatches, Args, FromArgMatches};
 use log::info;
 
 use yas::export::{AssetEmitter, ExportAssets};
@@ -28,7 +28,10 @@ impl ArtifactScannerApplication {
         cmd = <ExportArtifactConfig as Args>::augment_args_for_update(cmd);
         cmd = <GenshinArtifactScannerConfig as Args>::augment_args_for_update(cmd);
         cmd = <GenshinRepositoryScannerLogicConfig as Args>::augment_args_for_update(cmd);
-        cmd
+        cmd.arg(Arg::new("no-pause").long("no-pause").action(ArgAction::SetTrue)
+            .help("退出时不等待按键，多个游戏窗口时必须指定 --hwnd"))
+            .arg(Arg::new("hwnd").long("hwnd").value_parser(clap::value_parser!(isize))
+                .help("指定已打开的原神窗口句柄"))
     }
 
     fn get_window_info_repository() -> WindowInfoRepository {
@@ -47,21 +50,31 @@ impl ArtifactScannerApplication {
     //         .init();
     // }
 
-    fn get_game_info() -> Result<GameInfo> {
-        let game_info = GameInfoBuilder::new()
-            .add_local_window_name("原神")
+    fn get_game_info(&self) -> Result<GameInfo> {
+        let mut builder = GameInfoBuilder::new();
+        builder.add_local_window_name("原神")
             .add_local_window_name("Genshin Impact")
-            .add_cloud_window_name("云·原神")
-            .build();
-        game_info
+            .add_cloud_window_name("云·原神");
+        #[cfg(windows)]
+        return builder.build_with_window(self.arg_matches.get_one::<isize>("hwnd").copied(),
+            !self.arg_matches.get_flag("no-pause"));
+        #[cfg(not(windows))]
+        builder.build()
     }
 }
 
 impl ArtifactScannerApplication {
     pub fn run(&self) -> Result<()> {
         let arg_matches = &self.arg_matches;
+        // Reject truncating automation options before accessing the game window.
+        if arg_matches.get_flag("no-pause") {
+            GenshinRepositoryScannerLogicConfig::from_arg_matches(arg_matches)?
+                .validate_complete_scan()?;
+            GenshinArtifactScannerConfig::from_arg_matches(arg_matches)?
+                .validate_complete_scan()?;
+        }
         let window_info_repository = Self::get_window_info_repository();
-        let game_info = Self::get_game_info()?;
+        let game_info = self.get_game_info()?;
 
         info!("window: {:?}", game_info.window);
         info!("ui: {:?}", game_info.ui);
@@ -82,17 +95,28 @@ impl ArtifactScannerApplication {
             game_info.clone()
         )?;
 
-        let result = scanner.scan()?;
+        let result = if arg_matches.get_flag("no-pause") {
+            scanner.scan_require_complete()?
+        } else {
+            scanner.scan()?
+        };
         let artifacts = result
             .iter()
             .flat_map(GenshinArtifact::try_from)
             .collect::<Vec<_>>();
+
+        if arg_matches.get_flag("no-pause") && artifacts.len() != result.len() {
+            return Err(anyhow!("部分圣遗物识别结果无效，未导出自动导入结果"));
+        }
 
         let exporter = GenshinArtifactExporter::new(arg_matches, &artifacts)?;
         let mut export_assets = ExportAssets::new();
         exporter.emit(&mut export_assets);
 
         let stats = export_assets.save();
+        if arg_matches.get_flag("no-pause") && !stats.failed_items.is_empty() {
+            return Err(anyhow!("扫描结果保存失败，未完成自动导入"));
+        }
         info!("保存结果：");
         let table = format!("{}", stats);
         // print multiline
@@ -102,5 +126,40 @@ impl ArtifactScannerApplication {
         info!("Yas 识别结束，共识别到 {} 件圣遗物。", result.len());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn automation_rejects_row_limit_before_accessing_game() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--max-row=1"])
+            .unwrap();
+        let error = ArtifactScannerApplication::new(matches).run().unwrap_err();
+        assert!(error.to_string().contains("完整扫描不支持有限的 --max-row"));
+    }
+
+    #[test]
+    fn automation_rejects_ignored_duplicates_before_accessing_game() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--ignore-dup", "--number=1"])
+            .unwrap();
+        let error = ArtifactScannerApplication::new(matches).run().unwrap_err();
+        assert!(error.to_string().contains("完整扫描不支持 --ignore-dup"));
+    }
+
+    #[test]
+    fn automation_accepts_explicit_scan_scope() {
+        let matches = ArtifactScannerApplication::build_command()
+            .try_get_matches_from(["yas", "--no-pause", "--number=1", "--min-star=5", "--min-level=20"])
+            .unwrap();
+        let config = GenshinArtifactScannerConfig::from_arg_matches(&matches).unwrap();
+        assert_eq!((config.number, config.min_star, config.min_level), (1, 5, 20));
+        config.validate_complete_scan().unwrap();
+        GenshinRepositoryScannerLogicConfig::from_arg_matches(&matches)
+            .unwrap().validate_complete_scan().unwrap();
     }
 }

@@ -194,8 +194,9 @@ impl ImageToText<RgbImage> for PPOCRModel {
     }
 }
 
-pub macro ppocr_model($onnx:literal, $index_to_word:literal) {
-    {
+#[macro_export]
+macro_rules! ppocr_model {
+    ($onnx:literal, $index_to_word:literal) => {{
         let model_bytes = include_bytes!($onnx);
         let index_to_word_str = include_str!($index_to_word);
 
@@ -205,10 +206,10 @@ pub macro ppocr_model($onnx:literal, $index_to_word:literal) {
         }
         index_to_word_vec.push(String::from(" "));
 
-        PPOCRModel::new(
+        $crate::ocr::PPOCRModel::new(
             model_bytes, index_to_word_vec,
         )
-    }
+    }};
 }
 
 pub struct PPOCRChV4RecInfer {

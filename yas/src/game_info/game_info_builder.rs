@@ -24,6 +24,13 @@ impl GameInfoBuilder {
         self
     }
 
+    #[cfg(windows)]
+    pub fn build_with_window(&self, hwnd: Option<isize>, interactive: bool) -> Result<GameInfo> {
+        let names: Vec<&str> = self.local_window_names.iter().chain(self.cloud_window_names.iter())
+            .map(String::as_str).collect();
+        crate::game_info::os::get_game_info_with_window(&names, hwnd, interactive)
+    }
+
     pub fn build(&self) -> Result<GameInfo> {
         #[cfg(windows)]
         {

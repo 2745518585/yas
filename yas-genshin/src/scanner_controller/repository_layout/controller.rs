@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::ops::Coroutine;
+use std::ops::ControlFlow;
 use std::rc::Rc;
 use std::time::SystemTime;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::{ArgMatches, FromArgMatches};
 use image::RgbImage;
 use log::{error, info};
@@ -131,102 +131,129 @@ pub enum ReturnResult {
     Finished,
 }
 
+fn capture_after_switch(
+    switch_result: Result<()>,
+    require_complete: bool,
+    on_item: impl FnOnce() -> Result<ControlFlow<()>>,
+) -> Result<ControlFlow<()>> {
+    if require_complete {
+        switch_result.context("切换物品失败，扫描未完成")?;
+    }
+    on_item()
+}
+
 impl GenshinRepositoryScanController {
-    pub fn get_generator(object: Rc<RefCell<GenshinRepositoryScanController>>, item_count: usize) -> impl Coroutine<Yield=(), Return=Result<ReturnResult>> {
-        let generator = #[coroutine] move || {
-            let mut scanned_row = 0;
-            let mut scanned_count = 0;
-            let mut start_row = 0;
+    pub fn validate_complete_scan(&self) -> Result<()> {
+        self.config.validate_complete_scan()
+    }
 
-            let total_row = (item_count + object.borrow().col - 1) / object.borrow().col;
-            let last_row_col = if item_count % object.borrow().col == 0 {
-                object.borrow().col
-            } else {
-                item_count % object.borrow().col
-            };
+    /// Call `on_item` after selecting each item, with no controller borrow held.
+    /// The callback can finish early when filtering or the OCR worker is done.
+    pub fn scan_with(
+        object: Rc<RefCell<GenshinRepositoryScanController>>,
+        item_count: usize,
+        on_item: impl FnMut() -> Result<ControlFlow<()>>,
+    ) -> Result<ReturnResult> {
+        Self::scan_with_completion(object, item_count, false, on_item)
+    }
 
-            info!(
-                "扫描任务共 {} 个物品，共计 {} 行，尾行 {} 个",
-                item_count, total_row, last_row_col
-            );
+    /// Complete mode must not capture a stale panel after a switch failure.
+    pub fn scan_with_completion(
+        object: Rc<RefCell<GenshinRepositoryScanController>>,
+        item_count: usize,
+        require_complete: bool,
+        mut on_item: impl FnMut() -> Result<ControlFlow<()>>,
+    ) -> Result<ReturnResult> {
+        let mut scanned_row = 0;
+        let mut scanned_count = 0;
+        let mut start_row = 0;
 
-            object.borrow_mut().move_to(0, 0);
-
-            #[cfg(target_os = "macos")]
-            utils::sleep(20);
-
-            // todo remove unwrap
-            object.borrow_mut().system_control.mouse_click().unwrap();
-            utils::sleep(1000);
-
-            object.borrow_mut().sample_initial_color().unwrap();
-
-            let row = object.borrow().row.min(total_row);
-
-            'outer: while scanned_count < item_count {
-                '_row: for row in start_row..row {
-                    let row_item_count = if scanned_row == total_row - 1 {
-                        last_row_col
-                    } else {
-                        object.borrow().col
-                    };
-
-                    '_col: for col in 0..row_item_count {
-                        // 大于最大数量 或者 取消 或者 鼠标右键按下
-                        if utils::is_rmb_down() {
-                            return Ok(ReturnResult::Interrupted);
-                        }
-                        if scanned_count > item_count {
-                            return Ok(ReturnResult::Finished);
-                        }
-
-                        object.borrow_mut().move_to(row, col);
-                        object.borrow_mut().system_control.mouse_click().unwrap();
-
-                        #[cfg(target_os = "macos")]
-                        utils::sleep(20);
-
-                        let _ = object.borrow_mut().wait_until_switched();
-
-                        // have to make sure at this point no mut ref exists
-                        yield;
-
-                        scanned_count += 1;
-                        object.borrow_mut().scanned_count = scanned_count;
-                    } // end '_col
-
-                    scanned_row += 1;
-
-                    // todo this is dangerous, use uniform integer type instead
-                    if scanned_row >= object.borrow().config.max_row as usize {
-                        info!("到达最大行数，准备退出……");
-                        break 'outer;
-                    }
-                } // end '_row
-
-                let remain = item_count - scanned_count;
-                let remain_row = (remain + object.borrow().col - 1) / object.borrow().col;
-                let scroll_row = remain_row.min(object.borrow().row);
-                start_row = object.borrow().row - scroll_row;
-
-                match object.borrow_mut().scroll_rows(scroll_row as i32) {
-                    ScrollResult::TimeLimitExceeded => {
-                        // error!("");
-                        return Err(anyhow!("翻页超时，扫描终止……"));
-                    }
-                    ScrollResult::Interrupt => {
-                        return Ok(ReturnResult::Interrupted);
-                    }
-                    _ => (),
-                }
-
-                utils::sleep(100);
-            }
-
-            Ok(ReturnResult::Finished)
+        let total_row = (item_count + object.borrow().col - 1) / object.borrow().col;
+        let last_row_col = if item_count % object.borrow().col == 0 {
+            object.borrow().col
+        } else {
+            item_count % object.borrow().col
         };
 
-        generator
+        info!(
+            "扫描任务共 {} 个物品，共计 {} 行，尾行 {} 个",
+            item_count, total_row, last_row_col
+        );
+
+        object.borrow_mut().move_to(0, 0);
+
+        #[cfg(target_os = "macos")]
+        utils::sleep(20);
+
+        // todo remove unwrap
+        object.borrow_mut().system_control.mouse_click().unwrap();
+        utils::sleep(1000);
+
+        object.borrow_mut().sample_initial_color().unwrap();
+
+        let row = object.borrow().row.min(total_row);
+
+        'outer: while scanned_count < item_count {
+            '_row: for row in start_row..row {
+                let row_item_count = if scanned_row == total_row - 1 {
+                    last_row_col
+                } else {
+                    object.borrow().col
+                };
+
+                '_col: for col in 0..row_item_count {
+                    // 大于最大数量 或者 取消 或者 鼠标右键按下
+                    if utils::is_rmb_down() {
+                        return Ok(ReturnResult::Interrupted);
+                    }
+                    if scanned_count > item_count {
+                        return Ok(ReturnResult::Finished);
+                    }
+
+                    object.borrow_mut().move_to(row, col);
+                    object.borrow_mut().system_control.mouse_click().unwrap();
+
+                    #[cfg(target_os = "macos")]
+                    utils::sleep(20);
+
+                    // Drop the controller borrow before invoking the capture callback.
+                    let switched = object.borrow_mut().wait_until_switched();
+                    if capture_after_switch(switched, require_complete, &mut on_item)?.is_break() {
+                        return Ok(ReturnResult::Finished);
+                    }
+
+                    scanned_count += 1;
+                    object.borrow_mut().scanned_count = scanned_count;
+                } // end '_col
+
+                scanned_row += 1;
+
+                // todo this is dangerous, use uniform integer type instead
+                if scanned_row >= object.borrow().config.max_row as usize {
+                    info!("到达最大行数，准备退出……");
+                    break 'outer;
+                }
+            } // end '_row
+
+            let remain = item_count - scanned_count;
+            let remain_row = (remain + object.borrow().col - 1) / object.borrow().col;
+            let scroll_row = remain_row.min(object.borrow().row);
+            start_row = object.borrow().row - scroll_row;
+
+            match object.borrow_mut().scroll_rows(scroll_row as i32) {
+                ScrollResult::TimeLimitExceeded => {
+                    return Err(anyhow!("翻页超时，扫描终止……"));
+                }
+                ScrollResult::Interrupt => {
+                    return Ok(ReturnResult::Interrupted);
+                }
+                _ => (),
+            }
+
+            utils::sleep(100);
+        }
+
+        Ok(ReturnResult::Finished)
     }
 
     #[inline(always)]
@@ -430,5 +457,49 @@ impl GenshinRepositoryScanController {
     #[inline(always)]
     fn estimate_scroll_length(&self, count: i32) -> i32 {
         ((self.avg_scroll_one_row * count as f64 - 2.0).round() as i32).max(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn switch_failure_stops_complete_scan_before_capture() {
+        for cause in ["switch timed out", "capture failed"] {
+            let result = capture_after_switch(Err(anyhow!(cause)), true, || {
+                panic!("a stale panel must not be captured for a complete scan")
+            });
+            let error = result.unwrap_err();
+            assert!(error.to_string().contains("切换物品失败"));
+            assert!(format!("{error:#}").contains(cause));
+        }
+    }
+
+    #[test]
+    fn interactive_scan_retains_best_effort_capture() {
+        let mut captured = false;
+        let result = capture_after_switch(Err(anyhow!("switch timed out")), false, || {
+            captured = true;
+            Ok(ControlFlow::Continue(()))
+        }).unwrap();
+        assert!(captured);
+        assert!(result.is_continue());
+    }
+
+    #[test]
+    fn successful_switch_preserves_capture_result() {
+        for require_complete in [false, true] {
+            assert!(capture_after_switch(Ok(()), require_complete, || {
+                Ok(ControlFlow::Break(()))
+            }).unwrap().is_break());
+            assert!(capture_after_switch(Ok(()), require_complete, || {
+                Ok(ControlFlow::Continue(()))
+            }).unwrap().is_continue());
+            let error = capture_after_switch(Ok(()), require_complete, || {
+                Err(anyhow!("panel capture failed"))
+            }).unwrap_err();
+            assert_eq!(error.to_string(), "panel capture failed");
+        }
     }
 }

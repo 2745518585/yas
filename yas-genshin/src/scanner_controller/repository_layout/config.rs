@@ -39,3 +39,31 @@ impl Default for GenshinRepositoryScannerLogicConfig {
         }
     }
 }
+
+impl GenshinRepositoryScannerLogicConfig {
+    pub fn validate_complete_scan(&self) -> anyhow::Result<()> {
+        if self.max_row >= 0 {
+            anyhow::bail!("完整扫描不支持有限的 --max-row，请移除此选项或设为 -1");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn complete_scan_rejects_finite_row_limits() {
+        for max_row in [0, 1, 2, i32::MAX] {
+            let config = GenshinRepositoryScannerLogicConfig {
+                max_row,
+                ..Default::default()
+            };
+            assert!(config.validate_complete_scan().is_err());
+        }
+        assert!(GenshinRepositoryScannerLogicConfig::default()
+            .validate_complete_scan()
+            .is_ok());
+    }
+}

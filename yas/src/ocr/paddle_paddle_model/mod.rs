@@ -2,5 +2,5 @@ mod model;
 mod preprocess;
 
 pub use model::PPOCRModel;
-pub use model::ppocr_model;
+pub use crate::ppocr_model;
 pub use model::PPOCRChV4RecInfer;
